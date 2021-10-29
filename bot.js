@@ -140,7 +140,7 @@ function play(hangman) {
 
     while (hangman.is_won == hangman.is_lost) {
         print(hangman);
-        let letter = window.prompt("Enter guess: ");
+        let letter = getInput();
         guess(hangman, letter);
 
     } // while
@@ -156,5 +156,10 @@ function play(hangman) {
     } // if
 
 } // play
+
+function getInput() {
+    return window.prompt("Enter guess: ");
+    
+} // getInput
 
 play(new Hangman("bigchungus"));

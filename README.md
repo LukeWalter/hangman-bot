@@ -1,2 +1,2 @@
 # hangman-bot
-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
+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

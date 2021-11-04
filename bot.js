@@ -4,202 +4,323 @@ var Twit = require('twit');
 // We need to include our configuration file
 var T = new Twit(require('./config.js'));
 
-function Hangman(word) {
-    
-    full_array = [];
-    shown_array = [];
-    guesses = [];
-    let wrong_guesses = 0;
-    let is_won = false;
-    let is_lost = false;
+var bot_name = 'hang_man_bot';
 
-    word = word.toUpperCase();
+var trigger = T.stream('statuses/filter', { track: ['@' + bot_name] });
+trigger.on('tweet', mentionResponse);
 
-    for (let i = 0; i < word.length; i++) {
+function mentionResponse(mention) {
+
+    // #region New Game Generator
+
+    let original_tweet_id = mention.in_reply_to_status_id_str; 
+
+    T.get('statuses/show/:id', { id: original_tweet_id }, function(err, original, response) {
         
-        full_array.length++;
-        full_array[full_array.length - 1] = word.charAt(i);
+        if (err) {
+            console.log('Wait, there\'s no tweet?');
+            return;
 
-        shown_array.length++;
-        shown_array[shown_array.length - 1] = '_';
+        } else if (new String(original.user.screen_name).normalize().valueOf() === new String(bot_name).normalize().valueOf()) {
+            
+            console.log('Wait, this is from me!');
+            return;
+        
+        } else {
 
-    } // for
+            //console.log(original);
+            //console.log(mention);
+            
+            //console.log('x' + original.user.screen_name + 'x');
+            //console.log('x' + bot_name + 'x');
 
-    return {full_array, shown_array, guesses, wrong_guesses, is_won, is_lost};
-
-} // Hangman
-
-function guess(hangman, letter) {
-
-    if (!applyGuess(hangman, letter)) {
-        hangman.wrong_guesses++;
-
-    } // if
-
-    update(hangman);
-
-} // guess
-
-function applyGuess(hangman, letter) {
-
-    let new_guess = letter.toUpperCase().charAt(0);
-    let guesses = hangman.guesses;
-
-    for (let i = 0; i < guesses.length; i++) {
-
-        if (new_guess == guesses[i]) {
-            return true;
+            original_tweet_text = original.text;
+            
+            console.log("valid game can be played!");
+            playGame(mention, original_tweet_text);
 
         } // if
 
-    } // for
 
-    guesses.length++;
-    guesses[guesses.length - 1] = new_guess;
+        //console.log('script reached the end');
 
-    let hit = false;
+    }); // get
 
-    for (let i = 0; i < hangman.full_array.length; i++) {
+    // #endregion
 
-        if (new_guess == hangman.full_array[i]) {
-            hangman.shown_array[i] = hangman.full_array[i];
-            hit = true;
+    // #region Game
 
-        } // if
+    function playGame(mention, text) {
 
-    } // for
+        // #region Hangman Code
 
-    return hit;
+        function Hangman(word) {
+        
+            full_array = [];
+            shown_array = [];
+            guesses = [];
+            let wrong_guesses = 0;
+            let is_won = false;
+            let is_lost = false;
+        
+            word = word.toUpperCase();
+        
+            for (let i = 0; i < word.length; i++) {
+                
+                full_array.length++;
+                full_array[full_array.length - 1] = word.charAt(i);
+        
+                shown_array.length++;
+                shown_array[shown_array.length - 1] = '_';
+        
+            } // for
+        
+            return {full_array, shown_array, guesses, wrong_guesses, is_won, is_lost};
+        
+        } // Hangman
 
-} // applyGuess
+        function getAsString(hangman) {
+        
+            let word = hangman.shown_array;
+            let output = "Guesses: ";
+        
+            stickman = ["O", "|", "/", "\\", "/", "\\"];
+            visible_stickman = [" ", " ", " ", " ", " ", " "];
+        
+            for (let i = 0; i < hangman.wrong_guesses; i++) {
+                visible_stickman[i] = stickman[i];
+        
+            } // for
+        
+            for (let i = 0; i < guesses.length; i++) {
+                output += guesses[i] + " ";
+        
+            } // for
+        
+            output = output.substring(0, output.length - 1);
+            output += "\n\n";
+        
+            output += "  +----+   \n";
+            output += "  |    |   \n";
+            output += "  |    " + visible_stickman[0] + "   \n";
+            output += "  |   " + visible_stickman[2] + visible_stickman[1] + visible_stickman[3] + "  \n";
+            output += "  |   " + visible_stickman[4] + " " + visible_stickman[5] + "  \n";
+            output += "  |        \n";
+            output += "===========\n\n";
+        
+            for (let i = 0; i < word.length; i++) {
+                output += word[i] + " ";
+        
+            } // for
+        
+            return output;
+        
+        } // getAsString
 
-function print(hangman) {
+        // #endregion
+        
+        console.log(text);
+        let word_array = text.trim().split(' ');
+        let x = Math.round(Math.random() * word_array.length);
+        console.log(x);
+        let word = new String(word_array[x]);
+        console.log(word);
 
-    let word = hangman.shown_array;
-    let output = "Guesses: ";
+        let game = new Hangman(word);
 
-    stickman = ["O", "|", "/", "\\", "/", "\\"];
-    visible_stickman = [" ", " ", " ", " ", " ", " "];
+        var name = mention.user.screen_name;
+        var nameID  = mention.id_str;
+        var reply = "@" + name + ' ' + getAsString(game);
+        var params = {
+            status: reply,
+            in_reply_to_status_id: nameID
+        };
 
-    for (let i = 0; i < hangman.wrong_guesses; i++) {
-        visible_stickman[i] = stickman[i];
+        T.post('statuses/update', params, function(err, board, response) {
+            
+            if (err !== undefined) {
+                console.log(err);
 
-    } // for
+            } else {
+                //console.log('Tweeted: ' + params.status);
 
-    for (let i = 0; i < guesses.length; i++) {
-        output += guesses[i] + " ";
+            } // if
 
-    } // for
+            playRound(game, board);
 
-    output = output.substring(0, output.length - 1);
-    output += "\n\n";
+        });
 
-    output += "  +----+   \n";
-    output += "  |    |   \n";
-    output += "  |    " + visible_stickman[0] + "   \n";
-    output += "  |   " + visible_stickman[2] + visible_stickman[1] + visible_stickman[3] + "  \n";
-    output += "  |   " + visible_stickman[4] + " " + visible_stickman[5] + "  \n";
-    output += "  |        \n";
-    output += "===========\n\n";
+    } // playGame
 
-    for (let i = 0; i < word.length; i++) {
-        output += word[i] + " ";
+    function playRound(game, board) {
+        
+        // #region Hangman Code
 
-    } // for
+        function guess(hangman, letter) {
+        
+            if (!applyGuess(hangman, letter)) {
+                hangman.wrong_guesses++;
+        
+            } // if
+        
+            update(hangman);
+        
+        } // guess
+        
+        function applyGuess(hangman, letter) {
+        
+            let new_guess = letter.toUpperCase().charAt(0);
+            let guesses = hangman.guesses;
+        
+            for (let i = 0; i < guesses.length; i++) {
+        
+                if (new_guess == guesses[i]) {
+                    return true;
+        
+                } // if
+        
+            } // for
+        
+            guesses.length++;
+            guesses[guesses.length - 1] = new_guess;
+        
+            let hit = false;
+        
+            for (let i = 0; i < hangman.full_array.length; i++) {
+        
+                if (new_guess == hangman.full_array[i]) {
+                    hangman.shown_array[i] = hangman.full_array[i];
+                    hit = true;
+        
+                } // if
+        
+            } // for
+        
+            return hit;
+        
+        } // applyGuess
+        
+        function getAsString(hangman) {
+        
+            let word = hangman.shown_array;
+            let output = "Guesses: ";
+        
+            stickman = ["O", "|", "/", "\\", "/", "\\"];
+            visible_stickman = [" ", " ", " ", " ", " ", " "];
+        
+            for (let i = 0; i < hangman.wrong_guesses; i++) {
+                visible_stickman[i] = stickman[i];
+        
+            } // for
+        
+            for (let i = 0; i < guesses.length; i++) {
+                output += guesses[i] + " ";
+        
+            } // for
+        
+            output = output.substring(0, output.length - 1);
+            output += "\n\n";
+        
+            output += "  +----+   \n";
+            output += "  |    |   \n";
+            output += "  |    " + visible_stickman[0] + "   \n";
+            output += "  |   " + visible_stickman[2] + visible_stickman[1] + visible_stickman[3] + "  \n";
+            output += "  |   " + visible_stickman[4] + " " + visible_stickman[5] + "  \n";
+            output += "  |        \n";
+            output += "===========\n\n";
+        
+            for (let i = 0; i < word.length; i++) {
+                output += word[i] + " ";
+        
+            } // for
+        
+            return output;
+        
+        } // getAsString
+        
+        function update(hangman) {
+        
+            updateWon(hangman);
+            updateLost(hangman);
+        
+        } // update
+        
+        function updateLost(hangman) {
+            hangman.is_lost = (hangman.wrong_guesses >= 6);
+        
+        } // updateLost
+        
+        function updateWon(hangman) {
+        
+            let matches = 0;
+            let word = hangman.full_array;
+            let shown = hangman.shown_array;
+        
+            for (let i = 0; i < hangman.full_array.length; i++) {
+        
+                if (hangman.shown_array[i] == hangman.full_array[i]) {
+                    matches++;
+        
+                } // if
+        
+            } // for
+        
+            hangman.is_won = (matches == word.length);
+        
+        } // updateWon
 
-    console.log(output);
+        // #endregion
 
-} // print
+        console.log('round start');
+        let boardID  = board.id_str;
 
-function update(hangman) {
+        var reply_watcher = T.stream('statuses/filter', { track: ['@' + bot_name] });
+        reply_watcher.on('tweet', function(guess_tweet) {
 
-    updateWon(hangman);
-    updateLost(hangman);
+            reply_watcher.stop();
 
-} // update
+            if (boardID !== guess_tweet.in_reply_to_status_id_str) {
+                playRound(game, board);
 
-function updateLost(hangman) {
-    hangman.is_lost = (hangman.wrong_guesses >= 6);
+            } else {
 
-} // updateLost
+                var name = guess_tweet.user.screen_name;
+                var nameID  = guess_tweet.id_str;
+                var input = guess_tweet.text.replace('@' + bot_name + ' ', "");
+                //console.log(guess_tweet.text);
+                //console.log(input);
+                
+                guess(game, input);
 
-function updateWon(hangman) {
+                var reply = "@" + name + ' ' + getAsString(game);
+                var params = {
+                    status: reply,
+                    in_reply_to_status_id: nameID
+                };
 
-    let matches = 0;
-    let word = hangman.full_array;
-    let shown = hangman.shown_array;
+                T.post('statuses/update', params, function(err, new_board, response) {
+            
+                    if (err !== undefined) {
+                        console.log(err);
 
-    for (let i = 0; i < hangman.full_array.length; i++) {
+                    } else {
+                        //console.log('Tweeted: ' + params.status);
 
-        if (hangman.shown_array[i] == hangman.full_array[i]) {
-            matches++;
+                    } // if
 
-        } // if
+                    if (!game.is_won && !game.is_lost) {
+                        playRound(game, new_board);
 
-    } // for
+                    } // if
 
-    hangman.is_won = (matches == word.length);
+                }); // post
 
-} // updateWon
+            } // if
 
-function play(hangman) {
+        }); // on
 
-    while (hangman.is_won == hangman.is_lost) {
-        print(hangman);
-        let letter = getInput();
-        guess(hangman, letter);
+    } // playRound
 
-    } // while
+    // #endregion
 
-    print(hangman);
-
-    if (hangman.is_won) {
-        console.log("You won!");
-
-    } else {
-        console.log("You lost.");
-
-    } // if
-
-} // play
-
-function getInput() {
-    return window.prompt("Enter guess: ");
-
-} // getInput
-
-//play(new Hangman("bigchungus"));
-
-var stream = T.stream('statuses/filter', { track: ['@hang_man_bot'] });
-stream.on('tweet', tweetEvent);
-
-function tweetEvent(tweet) {
-
-    // Who sent the tweet?
-    var name = tweet.user.screen_name;
-    // What is the text?
-    // var txt = tweet.text;
-    // the status update or tweet ID in which we will reply
-    var nameID  = tweet.id_str;
-
-     // Get rid of the @ mention
-    // var txt = txt.replace(/@myTwitterHandle/g, "");
-
-    // Start a reply back to the sender
-    var reply = "You mentioned me! @" + name + ' ' + 'You are super cool!';
-    var params             = {
-                              status: reply,
-                              in_reply_to_status_id: nameID
-                             };
-
-    T.post('statuses/update', params, function(err, data, response) {
-      if (err !== undefined) {
-        console.log(err);
-      } else {
-        console.log('Tweeted: ' + params.status);
-      }
-    })
-};
-
-
-console.log("bot is running");
+} // mentionResponse

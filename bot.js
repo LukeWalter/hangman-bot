@@ -11,6 +11,8 @@ trigger.on('tweet', mentionResponse);
 
 function mentionResponse(mention) {
 
+    // #region New Game Generator
+
     let original_tweet_id = mention.in_reply_to_status_id_str; 
 
     T.get('statuses/show/:id', { id: original_tweet_id }, function(err, original, response) {
@@ -44,9 +46,13 @@ function mentionResponse(mention) {
 
     }); // get
 
+    // #endregion
+
+    // #region Game
+
     function playGame(mention, text) {
 
-        /* Hangman functions */
+        // #region Hangman Code
 
         function Hangman(word) {
         
@@ -111,8 +117,8 @@ function mentionResponse(mention) {
         
         } // getAsString
 
-        /* Algorithm */
-
+        // #endregion
+        
         let game = new Hangman("Testing");
 
         var name = mention.user.screen_name;
@@ -137,12 +143,11 @@ function mentionResponse(mention) {
 
         });
 
-
     } // playGame
 
     function playRound(game, board) {
         
-        /* Hangman Functions */
+        // #region Hangman Code
 
         function guess(hangman, letter) {
         
@@ -256,13 +261,8 @@ function mentionResponse(mention) {
             hangman.is_won = (matches == word.length);
         
         } // updateWon
-        
-        function getInput() {
-            return window.prompt("Enter guess: ");
-        
-        } // getInput
 
-        /* Algorithm */
+        // #endregion
 
         console.log('round start');
         let boardID  = board.id_str;
@@ -306,36 +306,14 @@ function mentionResponse(mention) {
 
                     } // if
 
-                });
+                }); // post
 
             } // if
 
-        });
+        }); // on
 
     } // playRound
 
-};
+    // #endregion
 
-
-//console.log("bot is running");
-
-// function play(hangman) {
-
-//     while (hangman.is_won == hangman.is_lost) {
-//         console.log(getAsString(hangman));
-//         let letter = getInput();
-//         guess(hangman, letter);
-
-//     } // while
-
-//     print(hangman);
-
-//     if (hangman.is_won) {
-//         console.log("You won!");
-
-//     } else {
-//         console.log("You lost.");
-
-//     } // if
-
-// } // play
+} // mentionResponse

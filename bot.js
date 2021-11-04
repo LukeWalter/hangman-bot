@@ -119,7 +119,14 @@ function mentionResponse(mention) {
 
         // #endregion
         
-        let game = new Hangman("Testing");
+        console.log(text);
+        let word_array = text.trim().split(' ');
+        let x = Math.round(Math.random() * word_array.length);
+        console.log(x);
+        let word = new String(word_array[x]);
+        console.log(word);
+
+        let game = new Hangman(word);
 
         var name = mention.user.screen_name;
         var nameID  = mention.id_str;

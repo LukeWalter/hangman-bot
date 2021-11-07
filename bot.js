@@ -6,6 +6,7 @@ var T = new Twit(require('./config.js'));
 
 var bot_name = 'hang_man_bot';
 
+// Monitor @mentions
 var trigger = T.stream('statuses/filter', { track: ['@' + bot_name] });
 trigger.on('tweet', mentionResponse);
 
@@ -16,6 +17,8 @@ function mentionResponse(mention) {
     let original_tweet_id = mention.in_reply_to_status_id_str; 
 
     T.get('statuses/show/:id', { id: original_tweet_id }, function(err, original, response) {
+        
+        // Check if @mention is a reply to a non-null tweet (not from bot), then grab the data from that tweet
         
         if (err) {
             console.log('Wait, there\'s no tweet?');
@@ -28,11 +31,7 @@ function mentionResponse(mention) {
         
         } else {
 
-            //console.log(original);
-            //console.log(mention);
-            
-            //console.log('x' + original.user.screen_name + 'x');
-            //console.log('x' + bot_name + 'x');
+            // Use data from original tweet to start game
 
             original_tweet_text = original.text;
             
@@ -50,17 +49,19 @@ function mentionResponse(mention) {
 
     // #region Game
 
+    // Initializes a new game of hangman and starts round loop
     function playGame(mention, text) {
 
         // #region Hangman Code
 
+        // Creates Hangman object for game
         function Hangman(word) {
         
-            full_array = [];
-            shown_array = [];
-            guesses = [];
-            let wrong_guesses = 0;
-            let is_won = false;
+            full_array = []; // Array containing each character of the game word
+            shown_array = []; // Array containing characters of game word as seen in game (with blank spaces)
+            guesses = []; // Letters previously guessed
+            let wrong_guesses = 0; // # of wrong guesses
+            let is_won = false; 
             let is_lost = false;
         
             word = word.toUpperCase();
@@ -79,6 +80,7 @@ function mentionResponse(mention) {
         
         } // Hangman
 
+        // Returns a string detailing the current status of the game
         function getAsString(hangman) {
         
             let word = hangman.shown_array;
@@ -119,6 +121,8 @@ function mentionResponse(mention) {
 
         // #endregion
         
+        // Isolate random word from original tweet to use for game
+        
         console.log(text);
         let word_array = text.trim().split(' ');
         let x = Math.round(Math.random() * word_array.length);
@@ -128,6 +132,8 @@ function mentionResponse(mention) {
 
         let game = new Hangman(word);
 
+        // Format response to @mention
+        
         var name = mention.user.screen_name;
         var nameID  = mention.id_str;
         var reply = "@" + name + ' ' + getAsString(game);
@@ -136,13 +142,15 @@ function mentionResponse(mention) {
             in_reply_to_status_id: nameID
         };
 
+        // Post game board and start playing rounds
+        
         T.post('statuses/update', params, function(err, board, response) {
             
             if (err !== undefined) {
                 console.log(err);
 
             } else {
-                //console.log('Tweeted: ' + params.status);
+                console.log('Tweeted: ' + params.status);
 
             } // if
 
@@ -156,6 +164,7 @@ function mentionResponse(mention) {
         
         // #region Hangman Code
 
+        // Wrapper function for applyGuess
         function guess(hangman, letter) {
         
             if (!applyGuess(hangman, letter)) {
@@ -167,6 +176,7 @@ function mentionResponse(mention) {
         
         } // guess
         
+        // Updates game based on guessed letter
         function applyGuess(hangman, letter) {
         
             let new_guess = letter.toUpperCase().charAt(0);
@@ -200,6 +210,7 @@ function mentionResponse(mention) {
         
         } // applyGuess
         
+        // Returns a string detailing the current status of the game
         function getAsString(hangman) {
         
             let word = hangman.shown_array;
@@ -238,6 +249,7 @@ function mentionResponse(mention) {
         
         } // getAsString
         
+        // Wrapper function for updateLost and updateWin
         function update(hangman) {
         
             updateWon(hangman);
@@ -245,11 +257,13 @@ function mentionResponse(mention) {
         
         } // update
         
+        // Updates loss status of the game
         function updateLost(hangman) {
             hangman.is_lost = (hangman.wrong_guesses >= 6);
         
         } // updateLost
         
+        // Updates win status of the game
         function updateWon(hangman) {
         
             let matches = 0;
@@ -272,25 +286,34 @@ function mentionResponse(mention) {
         // #endregion
 
         console.log('round start');
-        let boardID  = board.id_str;
+        let boardID  = board.id_str; // ID of last board tweet
 
+        // Create new stream to watch for first reply to last board tweet
+        
         var reply_watcher = T.stream('statuses/filter', { track: ['@' + bot_name] });
         reply_watcher.on('tweet', function(guess_tweet) {
 
+            // Kill stream (will be restarted upon next call of playRound(game, board))
+            
             reply_watcher.stop();
 
             if (boardID !== guess_tweet.in_reply_to_status_id_str) {
+                
+                // Retry on same tweet if @mention is not responding to board tweet
+                
                 playRound(game, board);
 
             } else {
 
                 var name = guess_tweet.user.screen_name;
                 var nameID  = guess_tweet.id_str;
-                var input = guess_tweet.text.replace('@' + bot_name + ' ', "");
-                //console.log(guess_tweet.text);
-                //console.log(input);
+
+                // Grab text from @mention and use it as a guess
                 
+                var input = guess_tweet.text.replace('@' + bot_name + ' ', "");                
                 guess(game, input);
+                
+                // Format reply to @mention
 
                 var reply = "@" + name + ' ' + getAsString(game);
                 var params = {
@@ -298,13 +321,15 @@ function mentionResponse(mention) {
                     in_reply_to_status_id: nameID
                 };
 
+                // Post updated board as reply to @mention and go to next round
+                
                 T.post('statuses/update', params, function(err, new_board, response) {
             
                     if (err !== undefined) {
                         console.log(err);
 
                     } else {
-                        //console.log('Tweeted: ' + params.status);
+                        console.log('Tweeted: ' + params.status);
 
                     } // if
 
